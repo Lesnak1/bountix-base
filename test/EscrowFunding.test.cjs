@@ -1,9 +1,44 @@
 const { expect } = require("chai");
+const fs = require("fs");
+const path = require("path");
 
 describe("Escrow Contract Address & Funding Invariants", function () {
-  const ESCROW_V0_CONTRACT_ADDRESS = "0x89FAF386c052B55363fdEe45B04c48fcDcb5A692";
-  const ESCROW_V1_CONTRACT_ADDRESS = "0x81AcFAbb2D7f99fC68d764f720c731a0fA5C0995";
-  const ESCROW_V2_CONTRACT_ADDRESS = "0xdf680c699B705eB0e301fD83cA4A066F97a70f31";
+  const escrowSource = fs.readFileSync(path.join(__dirname, "../lib/escrow.ts"), "utf8");
+  const fundPanelSource = fs.readFileSync(path.join(__dirname, "../components/marketplace/escrow-fund-panel.tsx"), "utf8");
+  const taskDetailPageSource = fs.readFileSync(path.join(__dirname, "../app/tasks/[id]/page.tsx"), "utf8");
+  const actionsSource = fs.readFileSync(path.join(__dirname, "../app/tasks/actions.ts"), "utf8");
+
+  // Extract canonical constants directly from lib/escrow.ts
+  const extractConst = (name) => {
+    const match = escrowSource.match(new RegExp(`export const ${name} =\\s*["']([^"']+)["']`));
+    return match ? match[1] : null;
+  };
+
+  const ESCROW_V0_CONTRACT_ADDRESS = extractConst("ESCROW_V0_CONTRACT_ADDRESS");
+  const ESCROW_V1_CONTRACT_ADDRESS = extractConst("ESCROW_V1_CONTRACT_ADDRESS");
+  const ESCROW_V2_CONTRACT_ADDRESS = extractConst("ESCROW_V2_CONTRACT_ADDRESS");
+
+  it("exports valid canonical contract addresses in lib/escrow.ts", function () {
+    expect(ESCROW_V0_CONTRACT_ADDRESS).to.equal("0x89FAF386c052B55363fdEe45B04c48fcDcb5A692");
+    expect(ESCROW_V1_CONTRACT_ADDRESS).to.equal("0x81AcFAbb2D7f99fC68d764f720c731a0fA5C0995");
+    expect(ESCROW_V2_CONTRACT_ADDRESS).to.equal("0xdf680c699B705eB0e301fD83cA4A066F97a70f31");
+  });
+
+  it("verifies EscrowFundPanel routes FCFS reward mode to ESCROW_V2_CONTRACT_ADDRESS", function () {
+    expect(fundPanelSource).to.include("ESCROW_V2_CONTRACT_ADDRESS");
+    expect(fundPanelSource).to.include('rewardMode === "fcfs"');
+    expect(fundPanelSource).to.include("targetEscrowAddress");
+  });
+
+  it("verifies TaskDetailPage passes rewardMode to EscrowFundPanel without dropping fcfs", function () {
+    expect(taskDetailPageSource).to.include("rewardMode={dbTask.reward_mode}");
+    expect(taskDetailPageSource).to.not.include('rewardMode={dbTask.reward_mode === "raffle" ? "raffle" : "fixed"}');
+  });
+
+  it("verifies actions.ts records ESCROW_V2_CONTRACT_ADDRESS for fcfs tasks", function () {
+    expect(actionsSource).to.include('row.reward_mode === "fcfs"');
+    expect(actionsSource).to.include("ESCROW_V2_CONTRACT_ADDRESS");
+  });
 
   // Pure logic mirror of escrowContractForTask in lib/escrow.ts
   function escrowContractForTask(input) {
@@ -98,3 +133,4 @@ describe("Escrow Contract Address & Funding Invariants", function () {
     });
   });
 });
+
